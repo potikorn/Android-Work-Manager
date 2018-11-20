@@ -18,9 +18,11 @@ package com.example.background;
 
 import android.arch.lifecycle.ViewModelProviders;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -28,6 +30,9 @@ import android.widget.ProgressBar;
 import android.widget.RadioGroup;
 
 import com.bumptech.glide.Glide;
+
+import androidx.work.Data;
+import androidx.work.WorkStatus;
 
 
 public class BlurActivity extends AppCompatActivity {
@@ -63,6 +68,37 @@ public class BlurActivity extends AppCompatActivity {
 
         // Setup blur image file button
         mGoButton.setOnClickListener(view -> mViewModel.applyBlur(getBlurLevel()));
+
+        mOutputButton.setOnClickListener(view -> {
+            Uri currentUri = mViewModel.getOutputUri();
+            if (currentUri != null) {
+                Intent actionView = new Intent(Intent.ACTION_VIEW, currentUri);
+                if (actionView.resolveActivity(getPackageManager()) != null) {
+                    startActivity(actionView);
+                }
+            }
+        });
+
+        mCancelButton.setOnClickListener(view -> {
+            mViewModel.cancelWork();
+        });
+
+        mViewModel.getOutputStatus().observe(this, listOfWorkStatus -> {
+            if (listOfWorkStatus == null || listOfWorkStatus.isEmpty()) return;
+            WorkStatus workStatus = listOfWorkStatus.get(0);
+            boolean finished = workStatus.getState().isFinished();
+            if (!finished) {
+                showWorkInProgress();
+            } else {
+                showWorkFinished();
+                Data outputData = workStatus.getOutputData();
+                String outputImageUri = outputData.getString(Constants.KEY_IMAGE_URI);
+                if (!TextUtils.isEmpty(outputImageUri)) {
+                    mViewModel.setOutputUri(Uri.parse(outputImageUri));
+                    mOutputButton.setVisibility(View.VISIBLE);
+                }
+            }
+        });
     }
 
     /**
@@ -86,12 +122,13 @@ public class BlurActivity extends AppCompatActivity {
 
     /**
      * Get the blur level from the radio button as an integer
+     *
      * @return Integer representing the amount of times to blur the image
      */
     private int getBlurLevel() {
         RadioGroup radioGroup = findViewById(R.id.radio_blur_group);
 
-        switch(radioGroup.getCheckedRadioButtonId()) {
+        switch (radioGroup.getCheckedRadioButtonId()) {
             case R.id.radio_blur_lv_1:
                 return 1;
             case R.id.radio_blur_lv_2:
